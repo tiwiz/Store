@@ -18,6 +18,7 @@ import static org.mockito.Mockito.when;
 
 public class SourcePersisterTest {
     private static final BarCode simple = new BarCode("type", "key");
+    private final BarCodePathResolver resolver = new BarCodePathResolver();
     @Mock
     FileSystem fileSystem;
     @Mock
@@ -32,9 +33,9 @@ public class SourcePersisterTest {
 
     @Test
     public void readExists() throws FileNotFoundException {
-        when(fileSystem.exists(simple.toString()))
+        when(fileSystem.exists(resolver.resolve(simple)))
                 .thenReturn(true);
-        when(fileSystem.read(simple.toString())).thenReturn(bufferedSource);
+        when(fileSystem.read(resolver.resolve(simple))).thenReturn(bufferedSource);
 
         BufferedSource returnedValue = sourcePersister.read(simple).toBlocking().single();
         assertThat(returnedValue).isEqualTo(bufferedSource);
@@ -42,7 +43,7 @@ public class SourcePersisterTest {
 
     @Test
     public void readDoesNotExist() throws FileNotFoundException {
-        when(fileSystem.exists(SourcePersister.pathForBarcode(simple)))
+        when(fileSystem.exists(resolver.resolve(simple)))
                 .thenReturn(false);
 
         sourcePersister.read(simple)
@@ -58,6 +59,6 @@ public class SourcePersisterTest {
 
     @Test
     public void pathForBarcode() {
-        assertThat(SourcePersister.pathForBarcode(simple)).isEqualTo("typekey");
+        assertThat(resolver.resolve(simple)).isEqualTo("type/key");
     }
 }

@@ -10,7 +10,9 @@ import javax.annotation.Nonnull;
 import okio.BufferedSource;
 import rx.Emitter;
 import rx.Observable;
+import rx.exceptions.Exceptions;
 import rx.functions.Action1;
+import rx.functions.Func1;
 
 /**
  * FSReader is used when persisting from file system
@@ -50,5 +52,20 @@ public class FSReader<T> implements DiskRead<BufferedSource, T> {
                 }
             }
         }, Emitter.BackpressureMode.NONE);
+    }
+
+    public Observable<BufferedSource> readAll(@Nonnull final String type) throws FileNotFoundException {
+        return Observable
+                .from(fileSystem.list(type))
+                .map(new Func1<String, BufferedSource>() {
+                    @Override
+                    public BufferedSource call(String s) {
+                        try {
+                            return fileSystem.read(s);
+                        } catch (FileNotFoundException e) {
+                            throw Exceptions.propagate(e);
+                        }
+                    }
+                });
     }
 }
