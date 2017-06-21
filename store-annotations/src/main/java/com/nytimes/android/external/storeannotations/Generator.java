@@ -1,9 +1,7 @@
 package com.nytimes.android.external.storeannotations;
 
 
-import com.nytimes.android.external.store.base.BarCode;
-import com.nytimes.android.external.store.base.annotation.Persister;
-import com.nytimes.android.external.store.base.annotation.PersisterFile;
+import com.nytimes.android.external.store.base.annotation.Resizable;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
@@ -13,15 +11,16 @@ import com.squareup.javapoet.TypeSpec;
 
 import java.io.IOException;
 import java.io.Writer;
-import java.lang.annotation.Annotation;
 import java.util.List;
 import java.util.Locale;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.inject.Singleton;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
@@ -34,24 +33,26 @@ import javax.lang.model.util.SimpleTypeVisitor6;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 
-import dagger.Module;
 import dagger.Provides;
-import retrofit2.http.GET;
+
 
 public class Generator {
 
     private static final String TARGET_PACKAGE = "com.nytimes.android.store.generated";
-    private static final String PACKAGE_NAME = "com.nytimes.android.external.store.base";
+    private static final String PACKAGE_NAME = "com.nytimes.android.";
     private static final String PERSISTER_NAME = "Persister";
     private static final String STORE_NAME = "Store";
     private final ProcessingEnvironment env;
     private final TypeElement classElement;
+    private PackageElement packageOf;
 
 
     public Generator(TypeElement classElement, ProcessingEnvironment env) throws IllegalArgumentException {
         this.classElement = classElement;
         this.env = env;
+        packageOf = env.getElementUtils().getPackageOf(classElement);
     }
+
 
     public static String capitalize(String s) {
         if (s.length() == 0) {
@@ -105,82 +106,58 @@ public class Generator {
     void generateFiles() {
         env.getMessager().printMessage(Diagnostic.Kind.WARNING, "class has annotation");
 
-        List<? extends Element> methods = getMethods();
-
         String moduleClassName = getModuleName();
-        TypeSpec.Builder moduleClassBuilder = createModuleClassBuilder(moduleClassName);
-        for (Element method : methods) {
+        TypeSpec.Builder classBuilder = createModuleClassBuilder(classElement.getSimpleName().toString());
 
-            Annotations annotations = new Annotations(method).invoke();
-            Annotation persister = annotations.persisterAnnototation();
-            Annotation persisterFile = annotations.persisterFileAnnotation();
-            if (annotations.getAnnotation != null) {
-                moduleClassBuilder = generateForEachGetMethod(
-                        moduleClassBuilder, (ExecutableElement) method, persister, persisterFile);
+        ClassName hoverboard = ClassName.get("android.widget", "TextView");
+        ClassName list = ClassName.get("java.util", "List");
+        ClassName arrayList = ClassName.get("java.util", "ArrayList");
+        TypeName listOfHoverboards = ParameterizedTypeName.get(list, hoverboard);
+
+        MethodSpec.Builder resizeableViewsMethod = MethodSpec.methodBuilder("resizeableViews")
+                .returns(listOfHoverboards)
+                .addStatement("$T result = new $T<>()", listOfHoverboards, arrayList)
+                .addParameter(TypeName.get(classElement.asType()), classElement.getSimpleName()
+                        .toString().toLowerCase(Locale.US));
+        for (Element enclosedElement : classElement.getEnclosedElements()) {
+            if (enclosedElement.getKind() == ElementKind.FIELD
+                    && enclosedElement.getAnnotation(Resizable.class) != null) {
+                classBuilder = generateFieldGetter(
+                        classBuilder,enclosedElement,resizeableViewsMethod);
             }
         }
-
-        writeFile(moduleClassName, moduleClassBuilder);
+        resizeableViewsMethod.addStatement("return result");
+        classBuilder.addMethod(resizeableViewsMethod.build());
+        writeFile(packageOf.toString(),classBuilder);
 
     }
 
-    private void writeFile(String moduleClassName, TypeSpec.Builder moduleClassBuilder) {
-        JavaFile moduleFile = JavaFile.builder(TARGET_PACKAGE, moduleClassBuilder.build())
+    private void writeFile(String className, TypeSpec.Builder moduleClassBuilder) {
+        JavaFile moduleFile = JavaFile.builder(className, moduleClassBuilder.build())
                 .build();
-        writeOut(moduleClassName, moduleFile);
+        writeOut(classElement.getSimpleName()+"$FieldGetter", moduleFile);
     }
 
-    private TypeSpec.Builder generateForEachGetMethod(TypeSpec.Builder moduleClassBuilder,
-                                                      ExecutableElement realMethod, Annotation persister,
-                                                      Annotation persisterFile) {
-        List<? extends VariableElement> methodParams = realMethod.getParameters();
+    private TypeSpec.Builder generateFieldGetter(TypeSpec.Builder classBuilder,
+                                                 Element field, MethodSpec.Builder resizeableViewsMethod) {
 
-        String className = methodName(realMethod);
+        classBuilder = generateGetResizeableFields(field, methodName(field), classBuilder,resizeableViewsMethod);
 
-        String barcodeClassName = className + "BarCode";
-        TypeSpec.Builder barcodeClassBuilder = TypeSpec.classBuilder(barcodeClassName)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .superclass(BarCode.class);
-
-
-        if (persister != null) {
-            moduleClassBuilder = generateProvidesMethod(realMethod, methodName(realMethod), moduleClassBuilder);
-        }
-
-        if (persisterFile != null) {
-            moduleClassBuilder = generateProvidesMethodWithFile(realMethod,
-                    methodName(realMethod), moduleClassBuilder);
-        }
-
-
-        MethodSpec.Builder constructorBuilder = MethodSpec.constructorBuilder()
-                .addModifiers(Modifier.PUBLIC);
-
-
-        for (VariableElement parameter : methodParams) {
-            parameter.asType();
-
-            generateProperty(barcodeClassBuilder, constructorBuilder, parameter);
-        }
-
-
-        barcodeClassBuilder.addMethod(constructorBuilder.build());
-        writeFile(barcodeClassName, barcodeClassBuilder);
-        return moduleClassBuilder;
+        return classBuilder;
     }
 
-    private String methodName(ExecutableElement realMethod) {
+    private String methodName(Element realMethod) {
         return capitalize(realMethod.getSimpleName().toString());
     }
 
-    private TypeSpec.Builder createModuleClassBuilder(String moduleClassName) {
-        return TypeSpec.classBuilder(moduleClassName)
-                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
-                .addAnnotation(Module.class);
+    private TypeSpec.Builder createModuleClassBuilder(String className) {
+        String fieldGetterClassName = className + "$FieldGetter";
+        return TypeSpec.classBuilder(fieldGetterClassName)
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL);
     }
 
     private String getModuleName() {
-        return classElement.getSimpleName() + "Module";
+        return classElement.getSimpleName() +"$FieldGetter";
     }
 
     private List<? extends Element> getMethods() {
@@ -200,21 +177,15 @@ public class Generator {
         }
     }
 
-    private TypeSpec.Builder generateProvidesMethod(ExecutableElement method, String className,
-                                                    TypeSpec.Builder classBuilder) {
+    private TypeSpec.Builder generateGetResizeableFields(Element field, String fieldName,
+                                                         TypeSpec.Builder classBuilder, MethodSpec.Builder resizeableViewsMethod) {
 
-        ClassName persist = ClassName.get(PACKAGE_NAME, PERSISTER_NAME);
-        ClassName store = ClassName.get(PACKAGE_NAME, STORE_NAME);
 
-        TypeName genericReturnType = TypeName.get(getGenericType(method.getReturnType()));
-        TypeName persister = ParameterizedTypeName.get(persist, genericReturnType);
-        TypeName storeReturn = ParameterizedTypeName.get(store, genericReturnType);
+        resizeableViewsMethod .addStatement("result.add(foo."+fieldName.toLowerCase()+")");
 
-//        env.getMessager().printMessage(Diagnostic.Kind.WARNING, "FOO" + className);
-        MethodSpec.Builder providesMethod = providesMethodBuilder(className, storeReturn)
-                .addParameter(persister, PERSISTER_NAME.toLowerCase(Locale.US));
-        return classBuilder.addMethod(providesMethod.build());
+        return classBuilder;
     }
+
 
     private TypeSpec.Builder generateProvidesMethodWithFile(ExecutableElement method, String className,
                                                             TypeSpec.Builder moduleClassBuilder) {
@@ -250,35 +221,5 @@ public class Generator {
                 .returns(type)
                 .addStatement("return " + name);
         classBuilder.addMethod(getter.build());
-    }
-
-    private static class Annotations {
-        private final Element method;
-        private Annotation getAnnotation;
-        private Annotation persister;
-        private Annotation persisterFile;
-
-        public Annotations(Element method) {
-            this.method = method;
-        }
-
-        public Annotation getAnnotation() {
-            return getAnnotation;
-        }
-
-        public Annotation persisterAnnototation() {
-            return persister;
-        }
-
-        public Annotation persisterFileAnnotation() {
-            return persisterFile;
-        }
-
-        public Annotations invoke() {
-            getAnnotation = method.getAnnotation(GET.class);
-            persister = method.getAnnotation(Persister.class);
-            persisterFile = method.getAnnotation(PersisterFile.class);
-            return this;
-        }
     }
 }

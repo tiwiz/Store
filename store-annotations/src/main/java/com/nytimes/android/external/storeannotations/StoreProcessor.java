@@ -1,6 +1,6 @@
 package com.nytimes.android.external.storeannotations;
 
-import com.nytimes.android.external.store.base.annotation.BuildStore;
+import com.nytimes.android.external.store.base.annotation.Resize;
 
 import java.util.Set;
 
@@ -14,7 +14,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
 
-@SupportedAnnotationTypes("com.nytimes.android.external.store.base.annotation.BuildStore")
+@SupportedAnnotationTypes("com.nytimes.android.external.store.base.annotation.Resize")
 @SupportedSourceVersion(SourceVersion.RELEASE_7)
 public class StoreProcessor extends AbstractProcessor {
 
@@ -36,7 +36,7 @@ public class StoreProcessor extends AbstractProcessor {
     public boolean process(Set<? extends TypeElement> set, RoundEnvironment roundEnvironment) {
 
 
-        for (Element annotatedElement : roundEnvironment.getElementsAnnotatedWith(BuildStore.class)) {
+        for (Element annotatedElement : roundEnvironment.getElementsAnnotatedWith(Resize.class)) {
             // We can cast it, because we know that it of ElementKind.CLASS
             TypeElement typeElement = (TypeElement) annotatedElement;
 
