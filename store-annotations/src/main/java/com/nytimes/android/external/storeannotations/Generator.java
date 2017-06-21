@@ -61,52 +61,9 @@ public class Generator {
         return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
 
-    private static TypeMirror getGenericType(final TypeMirror type) {
-        final TypeMirror[] result = {null};
-
-        type.accept(new SimpleTypeVisitor6<Void, Void>() {
-            @Override
-            public Void visitDeclared(DeclaredType declaredType, Void v) {
-                List<? extends TypeMirror> typeArguments = declaredType.getTypeArguments();
-                if (!typeArguments.isEmpty()) {
-                    result[0] = typeArguments.get(0);
-                }
-                return null;
-            }
-
-            @Override
-            public Void visitPrimitive(PrimitiveType primitiveType, Void v) {
-                return null;
-            }
-
-            @Override
-            public Void visitArray(ArrayType arrayType, Void v) {
-                return null;
-            }
-
-            @Override
-            public Void visitTypeVariable(TypeVariable typeVariable, Void v) {
-                return null;
-            }
-
-            @Override
-            public Void visitError(ErrorType errorType, Void v) {
-                return null;
-            }
-
-            @Override
-            protected Void defaultAction(TypeMirror typeMirror, Void v) {
-                throw new UnsupportedOperationException();
-            }
-        }, null);
-
-        return result[0];
-    }
-
     void generateFiles() {
         env.getMessager().printMessage(Diagnostic.Kind.WARNING, "class has annotation");
 
-        String moduleClassName = getModuleName();
         TypeSpec.Builder classBuilder = createModuleClassBuilder(classElement.getSimpleName().toString());
 
         ClassName hoverboard = ClassName.get("android.widget", "TextView");
@@ -186,40 +143,4 @@ public class Generator {
         return classBuilder;
     }
 
-
-    private TypeSpec.Builder generateProvidesMethodWithFile(ExecutableElement method, String className,
-                                                            TypeSpec.Builder moduleClassBuilder) {
-        ClassName store = ClassName.get(PACKAGE_NAME, STORE_NAME);
-        TypeName genericReturnType = TypeName.get(getGenericType(method.getReturnType()));
-        TypeName storeReturn = ParameterizedTypeName.get(store, genericReturnType);
-//        env.getMessager().printMessage(Diagnostic.Kind.WARNING, "FOO" + genericReturnType.toString());
-        MethodSpec.Builder providesMethod = providesMethodBuilder(className, storeReturn)
-                .addParameter(String.class, "fileName");
-        return moduleClassBuilder.addMethod(providesMethod.build());
-    }
-
-    private MethodSpec.Builder providesMethodBuilder(String className, TypeName storeReturn) {
-        return MethodSpec.methodBuilder("provide" + className + "Store")
-                .addParameter(TypeName.get(classElement.asType()), classElement.getSimpleName()
-                        .toString().toLowerCase(Locale.US))
-                .addModifiers(Modifier.PUBLIC)
-                .addStatement("return null")
-                .addAnnotation(Provides.class)
-                .addAnnotation(Singleton.class)
-                .returns(storeReturn);
-    }
-
-    private void generateProperty(TypeSpec.Builder classBuilder, MethodSpec.Builder constructorBuilder,
-                                  VariableElement parameter) {
-        TypeName type = TypeName.get(parameter.asType());
-        String name = parameter.getSimpleName().toString();
-        classBuilder.addField(type, name, Modifier.PRIVATE, Modifier.FINAL);
-        constructorBuilder.addParameter(type, name);
-        constructorBuilder.addStatement("this." + name + " = " + name);
-        MethodSpec.Builder getter = MethodSpec.methodBuilder("get" + capitalize(name))
-                .addModifiers(Modifier.PUBLIC)
-                .returns(type)
-                .addStatement("return " + name);
-        classBuilder.addMethod(getter.build());
-    }
 }
