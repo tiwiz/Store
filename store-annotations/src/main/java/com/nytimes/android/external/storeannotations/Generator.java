@@ -1,6 +1,7 @@
 package com.nytimes.android.external.storeannotations;
 
 
+import com.google.common.base.CaseFormat;
 import com.nytimes.android.external.store.base.annotation.Resizable;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
@@ -15,25 +16,13 @@ import java.util.List;
 import java.util.Locale;
 
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.inject.Singleton;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.ArrayType;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.ErrorType;
-import javax.lang.model.type.PrimitiveType;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.type.TypeVariable;
-import javax.lang.model.util.SimpleTypeVisitor6;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-
-import dagger.Provides;
 
 
 public class Generator {
@@ -61,44 +50,44 @@ public class Generator {
         return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
 
-    void generateFiles() {
+    void generateFile() {
         env.getMessager().printMessage(Diagnostic.Kind.WARNING, "class has annotation");
 
-        TypeSpec.Builder classBuilder = createModuleClassBuilder(classElement.getSimpleName().toString());
+        TypeSpec.Builder classBuilder = createClass(classElement.getSimpleName().toString());
 
-        ClassName hoverboard = ClassName.get("android.widget", "TextView");
+        ClassName textView = ClassName.get("android.widget", "TextView");
         ClassName list = ClassName.get("java.util", "List");
         ClassName arrayList = ClassName.get("java.util", "ArrayList");
-        TypeName listOfHoverboards = ParameterizedTypeName.get(list, hoverboard);
+        TypeName listOfTextviews = ParameterizedTypeName.get(list, textView);
 
         MethodSpec.Builder resizeableViewsMethod = MethodSpec.methodBuilder("resizeableViews")
-                .returns(listOfHoverboards)
-                .addStatement("$T result = new $T<>()", listOfHoverboards, arrayList)
+                .returns(listOfTextviews)
+                .addStatement("$T result = new $T<>()", listOfTextviews, arrayList)
                 .addParameter(TypeName.get(classElement.asType()), classElement.getSimpleName()
                         .toString().toLowerCase(Locale.US));
         for (Element enclosedElement : classElement.getEnclosedElements()) {
             if (enclosedElement.getKind() == ElementKind.FIELD
                     && enclosedElement.getAnnotation(Resizable.class) != null) {
                 classBuilder = generateFieldGetter(
-                        classBuilder,enclosedElement,resizeableViewsMethod);
+                        classBuilder, enclosedElement, resizeableViewsMethod);
             }
         }
         resizeableViewsMethod.addStatement("return result");
         classBuilder.addMethod(resizeableViewsMethod.build());
-        writeFile(packageOf.toString(),classBuilder);
+        writeFile(packageOf.toString(), classBuilder);
 
     }
 
     private void writeFile(String className, TypeSpec.Builder moduleClassBuilder) {
         JavaFile moduleFile = JavaFile.builder(className, moduleClassBuilder.build())
                 .build();
-        writeOut(classElement.getSimpleName()+"$FieldGetter", moduleFile);
+        writeOut(classElement.getSimpleName() + "$FieldGetter", moduleFile);
     }
 
     private TypeSpec.Builder generateFieldGetter(TypeSpec.Builder classBuilder,
                                                  Element field, MethodSpec.Builder resizeableViewsMethod) {
 
-        classBuilder = generateGetResizeableFields(field, methodName(field), classBuilder,resizeableViewsMethod);
+        classBuilder = generateGetResizeableFields(field, methodName(field), classBuilder, resizeableViewsMethod);
 
         return classBuilder;
     }
@@ -107,14 +96,10 @@ public class Generator {
         return capitalize(realMethod.getSimpleName().toString());
     }
 
-    private TypeSpec.Builder createModuleClassBuilder(String className) {
+    private TypeSpec.Builder createClass(String className) {
         String fieldGetterClassName = className + "$FieldGetter";
         return TypeSpec.classBuilder(fieldGetterClassName)
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL);
-    }
-
-    private String getModuleName() {
-        return classElement.getSimpleName() +"$FieldGetter";
     }
 
     private List<? extends Element> getMethods() {
@@ -136,9 +121,8 @@ public class Generator {
 
     private TypeSpec.Builder generateGetResizeableFields(Element field, String fieldName,
                                                          TypeSpec.Builder classBuilder, MethodSpec.Builder resizeableViewsMethod) {
-
-
-        resizeableViewsMethod .addStatement("result.add(foo."+fieldName.toLowerCase()+")");
+        String classNameLowerCase = CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_CAMEL, classElement.getSimpleName().toString());
+        resizeableViewsMethod.addStatement("result.add(" + classNameLowerCase + "." + fieldName.toLowerCase() + ")");
 
         return classBuilder;
     }

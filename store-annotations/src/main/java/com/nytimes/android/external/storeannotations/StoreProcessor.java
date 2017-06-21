@@ -18,18 +18,9 @@ import javax.tools.Diagnostic;
 @SupportedSourceVersion(SourceVersion.RELEASE_7)
 public class StoreProcessor extends AbstractProcessor {
 
-    //private Types typeUtils;
-    //private Elements elementUtils;
-    //private Filer filer;
-    //private Messager messager;
-
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
-        //typeUtils = processingEnv.getTypeUtils();
-        //elementUtils = processingEnv.getElementUtils();
-        //filer = processingEnv.getFiler();
-        //messager = processingEnv.getMessager();
     }
 
     @Override
@@ -37,18 +28,17 @@ public class StoreProcessor extends AbstractProcessor {
 
 
         for (Element annotatedElement : roundEnvironment.getElementsAnnotatedWith(Resize.class)) {
-            // We can cast it, because we know that it of ElementKind.CLASS
             TypeElement typeElement = (TypeElement) annotatedElement;
 
             try {
-                new Generator(typeElement, processingEnv).generateFiles();
+                new Generator(typeElement, processingEnv).generateFile();
             } catch (IllegalArgumentException exception) {
                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "error:" + exception.getMessage());
-                return true;
+                return false;
+
             }
-            return false;
         }
-        return false;
+        return true;
     }
 
 }
