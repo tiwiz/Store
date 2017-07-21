@@ -19,9 +19,9 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import okio.BufferedSource;
-import retrofit2.GsonConverterFactory;
 import retrofit2.Retrofit;
-import retrofit2.RxJavaCallAdapterFactory;
+import retrofit2.adapter.rxjava.RxJavaCallAdapterFactory;
+import retrofit2.converter.gson.GsonConverterFactory;
 import rx.Observable;
 
 public class SampleApp extends Application {
